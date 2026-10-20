@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高中成績加權計算系統 - 拾光學記</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700&family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        literary: {
+                            bg: '#F9F6F0',       /* 溫和米白紙張色 */
+                            card: '#FFFFFF',     /* 純白卡片 */
+                            primary: '#5C6B57',  /* 靜謐森林綠 */
+                            primaryLight: '#809279',
+                            accent: '#C48B71',   /* 復古陶土橘 */
+                            text: '#3A3835',     /* 深灰墨色 */
+                            subtext: '#7A7571',  /* 淺灰墨色 */
+                            border: '#E8E2D8',   /* 柔和邊框 */
+                            tag: '#EFECE6'       /* 標籤底色 */
+                        }
+                    },
+                    fontFamily: {
+                        serif: ['"Noto Serif TC"', 'serif'],
+                        sans: ['"Zen Maru Gothic"', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #F9F6F0;
+            color: #3A3835;
+            font-family: 'Zen Maru Gothic', sans-serif;
+            background-image: radial-gradient(#E5E0D8 0.75px, transparent 0.75px);
+            background-size: 16px 16px;
+        }
+
+        .title-serif {
+            font-family: 'Noto Serif TC', serif;
+        }
+
+        /* 隱藏 HTML5 數字輸入框的上下箭頭 */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        /* 自訂勾選框樣式 */
+        .custom-checkbox {
+            appearance: none;
+            width: 1.25rem;
+            height: 1.25rem;
+            border: 1.5px solid #C48B71;
+            border-radius: 0.375rem;
+            outline: none;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        .custom-checkbox:checked {
+            background-color: #C48B71;
+        }
+        .custom-checkbox:checked::after {
+            content: '✓';
+            position: absolute;
+            color: white;
+            font-size: 0.85rem;
+            font-weight: bold;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .soft-shadow {
+            box-shadow: 0 10px 30px -10px rgba(92, 107, 87, 0.08);
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-16">
+
+    <header class="max-w-4xl mx-auto pt-10 px-6 text-center">
+        <div class="inline-block px-4 py-1.5 mb-3 rounded-full bg-literary-tag text-literary-subtext text-xs tracking-wider">
+            拾光學記 · 成績統計
+        </div>
+        <h1 class="text-3xl md:text-4xl font-bold title-serif text-literary-text tracking-wide mb-2">
+            高中加權成績計算器
+        </h1>
+        <p class="text-literary-subtext text-sm max-w-md mx-auto leading-relaxed">
+            「一筆一畫紀錄下的汗水，皆會化為成長的養份。」<br>請設定每週堂數與分數，系統將為您計算精準加權總分。
+        </p>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 mt-8">
+        
+        <!-- 上方控制列 / 批次操作 -->
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4 px-2">
+            <div class="text-xs text-literary-subtext">
+                <i class="fa-regular fa-lightbulb mr-1 text-literary-accent"></i>
+                勾選「免考/不採計」該科將不納入平均與學分計算
+            </div>
+            <div class="flex items-center space-x-3">
+                <button onclick="resetAll()" class="text-xs text-literary-subtext hover:text-literary-accent transition-colors duration-200 flex items-center gap-1 bg-white px-3 py-1.5 rounded-lg border border-literary-border shadow-sm">
+                    <i class="fa-solid fa-rotate-right"></i> 重置所有數值
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- 左側：科目編輯卡片列表 (佔據 2 欄) -->
+            <div class="lg:col-span-2 space-y-3" id="subjects-container">
+                <!-- 動態由 JavaScript 產生科目列表 -->
+            </div>
+
+            <!-- 右側：固定/浮動的計算統計卡片 -->
+            <div class="lg:col-span-1">
+                <div class="sticky top-6 bg-literary-card rounded-2xl p-6 border border-literary-border soft-shadow text-literary-text space-y-6">
+                    <div>
+                        <span class="text-xs text-literary-subtext tracking-wider uppercase block mb-1">Calculation Results</span>
+                        <h2 class="text-xl font-bold title-serif border-b border-literary-border pb-3 text-literary-primary">
+                            學期總結算
+                        </h2>
+                    </div>
+
+                    <!-- 主要成績數據呈現 -->
+                    <div class="space-y-4">
+                        <div class="bg-literary-bg p-4 rounded-xl border border-literary-border/60">
+                            <div class="text-xs text-literary-subtext mb-1">加權平均分數</div>
+                            <div class="flex items-baseline justify-between">
+                                <span class="text-3xl font-bold title-serif text-literary-primary" id="weighted-avg">0.0</span>
+                                <span class="text-xs text-literary-subtext">分</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-literary-bg/60 p-3 rounded-lg border border-literary-border/50">
+                                <div class="text-xs text-literary-subtext mb-0.5">總採計學分</div>
+                                <div class="text-lg font-semibold text-literary-text" id="total-credits">0</div>
+                            </div>
+                            <div class="bg-literary-bg/60 p-3 rounded-lg border border-literary-border/50">
+                                <div class="text-xs text-literary-subtext mb-0.5">未加權平均</div>
+                                <div class="text-lg font-semibold text-literary-text" id="raw-avg">0.0</div>
+                            </div>
+                        </div>
+
+                        <div class="bg-literary-bg/60 p-3 rounded-lg border border-literary-border/50">
+                            <div class="text-xs text-literary-subtext mb-0.5">加權總得分</div>
+                            <div class="text-lg font-semibold text-literary-text" id="total-weighted-score">0.0</div>
+                        </div>
+                    </div>
+
+                    <!-- 文青小短評 -->
+                    <div class="p-4 rounded-xl bg-literary-tag/60 border border-literary-border/40">
+                        <div class="text-xs font-semibold text-literary-accent mb-1 flex items-center gap-1">
+                            <i class="fa-solid fa-feather-pointed"></i> 寄語小札
+                        </div>
+                        <p class="text-xs text-literary-subtext leading-relaxed italic" id="literary-quote">
+                            「輸入成績，靜待學業豐收的墨痕。」
+                        </p>
+                    </div>
+
+                    <!-- 新增自訂科目按鈕 -->
+                    <button onclick="addCustomSubject()" class="w-full py-2.5 px-4 bg-literary-primary text-white rounded-xl text-xs font-medium hover:bg-literary-primaryLight transition-all duration-200 flex items-center justify-center gap-2 shadow-sm">
+                        <i class="fa-solid fa-plus text-xs"></i> 新增其他自訂科目
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <footer class="max-w-4xl mx-auto mt-16 text-center text-xs text-literary-subtext space-y-2">
+        <p>高中成績加權計算系統 · 輕便·優雅·無負擔</p>
+        <p class="opacity-60">數據皆於您的瀏覽器本機進行運算，不會上傳任何資料。</p>
+    </footer>
+
+    <script>
+        // 預設的高中科目清單
+        const defaultSubjects = [
+            { id: 'chinese', name: '國文', defaultCredit: 4, icon: 'fa-book-bookmark' },
+            { id: 'english', name: '英文', defaultCredit: 4, icon: 'fa-language' },
+            { id: 'math', name: '數學', defaultCredit: 4, icon: 'fa-calculator' },
+            { id: 'physics', name: '物理', defaultCredit: 2, icon: 'fa-atom' },
+            { id: 'chemistry', name: '化學', defaultCredit: 2, icon: 'fa-vial' },
+            { id: 'biology', name: '生物', defaultCredit: 2, icon: 'fa-dna' },
+            { id: 'earth', name: '地科', defaultCredit: 2, icon: 'fa-globe-asia' },
+            { id: 'history', name: '歷史', defaultCredit: 2, icon: 'fa-hourglass-half' },
+            { id: 'geography', name: '地理', defaultCredit: 2, icon: 'fa-map' },
+            { id: 'civics', name: '公民', defaultCredit: 2, icon: 'fa-scale-balanced' },
+            { id: 'pe', name: '體育', defaultCredit: 2, icon: 'fa-volleyball' },
+            { id: 'special', name: '專寫', defaultCredit: 1, icon: 'fa-pen-nib' }
+        ];
+
+        // 應用程式狀態
+        let subjectsData = [];
+        let customSubjectCounter = 0;
+
+        window.onload = function() {
+            initData();
+            renderSubjects();
+            calculate();
+        };
+
+        // 初始化預設科目資料
+        function initData() {
+            subjectsData = defaultSubjects.map(s => ({
+                id: s.id,
+                name: s.name,
+                credit: s.defaultCredit,
+                score: '',
+                isExempt: false,
+                icon: s.icon || 'fa-graduation-cap',
+                isCustom: false
+            }));
+        }
+
+        // 渲染科目列表
+        function renderSubjects() {
+            const container = document.getElementById('subjects-container');
+            container.innerHTML = '';
+
+            subjectsData.forEach((subject, index) => {
+                const card = document.createElement('div');
+                card.className = `bg-literary-card rounded-xl p-4 border transition-all duration-200 ${
+                    subject.isExempt ? 'border-dashed border-gray-300 opacity-60' : 'border-literary-border soft-shadow'
+                }`;
+
+                card.innerHTML = `
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        
+                        <!-- 科目名稱與圖示 -->
+                        <div class="flex items-center space-x-3 sm:w-1/3">
+                            <div class="w-8 h-8 rounded-lg bg-literary-tag text-literary-primary flex items-center justify-center text-sm">
+                                <i class="fa-solid ${subject.icon}"></i>
+                            </div>
+                            <div>
+                                ${subject.isCustom ? 
+                                    `<input type="text" value="${escapeHtml(subject.name)}" onchange="updateCustomName('${subject.id}', this.value)" class="text-sm font-semibold text-literary-text bg-transparent border-b border-literary-border focus:border-literary-accent outline-none w-28 px-1">` : 
+                                    `<span class="text-sm font-semibold text-literary-text">${subject.name}</span>`
+                                }
+                                ${subject.isCustom ? `<button onclick="removeSubject('${subject.id}')" class="ml-2 text-xs text-red-400 hover:text-red-600"><i class="fa-solid fa-trash-can"></i></button>` : ''}
+                            </div>
+                        </div>
+
+                        <!-- 控制區：堂數/學分與分數 -->
+                        <div class="flex items-center justify-between sm:justify-end gap-3 flex-1">
+                            
+                            <!-- 每週堂數/學分數 -->
+                            <div class="flex items-center space-x-1.5 bg-literary-bg px-2.5 py-1.5 rounded-lg border border-literary-border/60">
+                                <label class="text-xs text-literary-subtext whitespace-nowrap">堂數</label>
+                                <input type="number" min="0" max="20" value="${subject.credit}" 
+                                    ${subject.isExempt ? 'disabled' : ''}
+                                    oninput="updateCredit('${subject.id}', this.value)"
+                                    class="w-10 text-center bg-transparent text-sm font-medium text-literary-text outline-none">
+                            </div>
+
+                            <!-- 成績輸入框 -->
+                            <div class="flex items-center space-x-1.5 bg-literary-bg px-2.5 py-1.5 rounded-lg border border-literary-border/60">
+                                <label class="text-xs text-literary-subtext whitespace-nowrap">分數</label>
+                                <input type="number" min="0" max="100" placeholder="--" value="${subject.score}" 
+                                    ${subject.isExempt ? 'disabled' : ''}
+                                    oninput="updateScore('${subject.id}', this.value)"
+                                    class="w-12 text-center bg-transparent text-sm font-semibold text-literary-primary outline-none">
+                            </div>
+
+                            <!-- 免考 / 不計分勾選 -->
+                            <label class="flex items-center space-x-1.5 cursor-pointer select-none">
+                                <input type="checkbox" ${subject.isExempt ? 'checked' : ''} 
+                                    onchange="toggleExempt('${subject.id}')"
+                                    class="custom-checkbox">
+                                <span class="text-xs text-literary-subtext whitespace-nowrap">不採計</span>
+                            </label>
+
+                        </div>
+                    </div>
+                `;
+
+                container.appendChild(card);
+            });
+        }
+
+        function updateCredit(id, value) {
+            const subject = subjectsData.find(s => s.id === id);
+            if (subject) {
+                subject.credit = Math.max(0, parseInt(value) || 0);
+                calculate();
+            }
+        }
+
+        function updateScore(id, value) {
+            const subject = subjectsData.find(s => s.id === id);
+            if (subject) {
+                if (value === '') {
+                    subject.score = '';
+                } else {
+                    let num = parseFloat(value);
+                    if (num < 0) num = 0;
+                    if (num > 100) num = 100;
+                    subject.score = num;
+                }
+                calculate();
+            }
+        }
+
+        function toggleExempt(id) {
+            const subject = subjectsData.find(s => s.id === id);
+            if (subject) {
+                subject.isExempt = !subject.isExempt;
+                renderSubjects();
+                calculate();
+            }
+        }
+
+        function updateCustomName(id, newName) {
+            const subject = subjectsData.find(s => s.id === id);
+            if (subject) {
+                subject.name = newName || '新科目';
+            }
+        }
+
+        function addCustomSubject() {
+            customSubjectCounter++;
+            const newId = 'custom_' + customSubjectCounter;
+            subjectsData.push({
+                id: newId,
+                name: `自訂科目 ${customSubjectCounter}`,
+                credit: 2,
+                score: '',
+                isExempt: false,
+                icon: 'fa-book-open',
+                isCustom: true
+            });
+            renderSubjects();
+            calculate();
+        }
+
+        function removeSubject(id) {
+            subjectsData = subjectsData.filter(s => s.id !== id);
+            renderSubjects();
+            calculate();
+        }
+
+        function resetAll() {
+            initData();
+            renderSubjects();
+            calculate();
+        }
+
+        function calculate() {
+            let totalWeightedScore = 0;
+            let totalCredits = 0;
+            let rawScoreSum = 0;
+            let validSubjectCount = 0;
+
+            subjectsData.forEach(s => {
+                // 若勾選免考，或者分數未填寫，則不納入算術統計
+                if (!s.isExempt && s.score !== '' && !isNaN(s.score)) {
+                    const score = parseFloat(s.score);
+                    const credit = parseInt(s.credit) || 0;
+
+                    totalWeightedScore += score * credit;
+                    totalCredits += credit;
+                    
+                    rawScoreSum += score;
+                    validSubjectCount++;
+                }
+            });
+
+            // 計算平均
+            const weightedAvg = totalCredits > 0 ? (totalWeightedScore / totalCredits) : 0;
+            const rawAvg = validSubjectCount > 0 ? (rawScoreSum / validSubjectCount) : 0;
+
+            // 更新畫面 UI
+            document.getElementById('weighted-avg').innerText = weightedAvg.toFixed(2);
+            document.getElementById('total-credits').innerText = totalCredits;
+            document.getElementById('raw-avg').innerText = rawAvg.toFixed(1);
+            document.getElementById('total-weighted-score').innerText = totalWeightedScore.toFixed(1);
+
+            // 更新文青語錄
+            updateLiteraryQuote(weightedAvg, validSubjectCount);
+        }
+
+        function updateLiteraryQuote(avg, count) {
+            const quoteEl = document.getElementById('literary-quote');
+
+            if (count === 0) {
+                quoteEl.innerText = "「輸入成績，靜待學業豐收的墨痕。」";
+                return;
+            }
+
+            if (avg >= 90) {
+                quoteEl.innerText = "「筆耕不輟，終成文章。如同繁星璀璨，熠熠生輝。」";
+            } else if (avg >= 80) {
+                quoteEl.innerText = "「靜水深流，穩步前行。每一筆付出，皆蓄積著躍進的力量。」";
+            } else if (avg >= 70) {
+                quoteEl.innerText = "「溫故而知新，風過無痕，心有餘香。繼續保持平穩的心境。」";
+            } else if (avg >= 60) {
+                quoteEl.innerText = "「跨越及格之線，如輕舟已過萬重山。整理羽翼，再行遠方。」";
+            } else {
+                quoteEl.innerText = "「一時的沉寂是為了更深的紮根。雨後泥土，終將綻放新芽。」";
+            }
+        }
+
+        // HTML 轉義防護
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
